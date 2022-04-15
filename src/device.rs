@@ -69,6 +69,34 @@ impl Device {
         })
     }
 
+    /// Returns a capture device by path and specified flags
+    ///
+    /// Linux device nodes are usually found in /dev/videoX or /sys/class/video4linux/videoX.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path (e.g. "/dev/video0")
+    /// * `flags` - i32 (e.g. libc::O_RDWR)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use v4l::device::Device;
+    /// use libc;
+    /// let dev = Device::with_path("/dev/video0", libc::O_RDWR | libc::O_NONBLOCK);
+    /// ```
+    pub fn with_path_and_flags<P: AsRef<Path>>(path: P, flags: i32) -> io::Result<Self> {
+        let fd = v4l2::open(&path, flags)?;
+
+        if fd == -1 {
+            return Err(io::Error::last_os_error());
+        }
+
+        Ok(Device {
+            handle: Arc::new(Handle { fd }),
+        })
+    }
+
     /// Returns the raw device handle
     pub fn handle(&self) -> Arc<Handle> {
         self.handle.clone()
