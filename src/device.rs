@@ -91,10 +91,11 @@ impl Device {
     /// let dev = Device::with_path("/dev/video0", libc::O_RDWR | libc::O_NONBLOCK);
     /// ```
     pub fn with_path_and_flags<P: AsRef<Path>>(path: P, open_flags: OpenFlags) -> io::Result<Self> {
-        let flags = libc::O_RDWR | match open_flags {
-            OpenFlags::Nonblocking => libc::O_NONBLOCK,
-            OpenFlags::Blocking => 0,
-        };
+        let flags = libc::O_RDWR
+            | match open_flags {
+                OpenFlags::Nonblocking => libc::O_NONBLOCK,
+                OpenFlags::Blocking => 0,
+            };
         let fd = v4l2::open(&path, flags)?;
 
         if fd == -1 {
@@ -243,6 +244,24 @@ impl Device {
                 v4l2::vidioc::VIDIOC_S_CTRL,
                 &mut v4l2_ctrl as *mut _ as *mut std::os::raw::c_void,
             )
+        }
+    }
+
+    fn wait(&self, timeout: Option<usize>) -> io::Result<()> {
+        let mut file_descriptors = [libc::pollfd {
+            fd: self.handle().fd(),
+            events: libc::POLLIN | libc::POLLPRI,
+            revents: 0,
+        }];
+        let timeout = match timeout {
+            Some(t) => t as i32,
+            None => -1,
+        };
+        let number_of_events = unsafe { libc::poll(file_descriptors.as_mut_ptr(), 1, timeout) };
+        match number_of_events {
+            -1 => Err(io::Error::from(io::ErrorKind::Other)),
+            0 => Err(io::Error::from(io::ErrorKind::TimedOut)),
+            _ => Ok(()),
         }
     }
 }
