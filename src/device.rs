@@ -247,7 +247,7 @@ impl Device {
         }
     }
 
-    fn wait(&self, timeout: Option<usize>) -> io::Result<()> {
+    pub fn wait(&self, timeout: Option<usize>) -> io::Result<()> {
         let mut file_descriptors = [libc::pollfd {
             fd: self.handle().fd(),
             events: libc::POLLIN | libc::POLLPRI,
@@ -261,7 +261,13 @@ impl Device {
         match number_of_events {
             -1 => Err(io::Error::from(io::ErrorKind::Other)),
             0 => Err(io::Error::from(io::ErrorKind::TimedOut)),
-            _ => Ok(()),
+            _ => {
+                if file_descriptors[0].revents & libc::POLLIN != 0 {
+                    Ok(())
+                } else {
+                    Err(io::Error::from(io::ErrorKind::ConnectionReset))
+                }
+            }
         }
     }
 }
