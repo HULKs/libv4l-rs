@@ -8,6 +8,11 @@ use crate::v4l2;
 use crate::v4l_sys::*;
 use crate::{capability::Capabilities, control::Control};
 
+pub enum OpenFlags {
+    Nonblocking = 0,
+    Blocking = 1,
+}
+
 /// Linux capture device abstraction
 pub struct Device {
     /// Raw handle
@@ -85,7 +90,11 @@ impl Device {
     /// use libc;
     /// let dev = Device::with_path("/dev/video0", libc::O_RDWR | libc::O_NONBLOCK);
     /// ```
-    pub fn with_path_and_flags<P: AsRef<Path>>(path: P, flags: i32) -> io::Result<Self> {
+    pub fn with_path_and_flags<P: AsRef<Path>>(path: P, open_flags: OpenFlags) -> io::Result<Self> {
+        let flags = libc::O_RDWR | match open_flags {
+            OpenFlags::Nonblocking => libc::O_NONBLOCK,
+            OpenFlags::Blocking => 0,
+        };
         let fd = v4l2::open(&path, flags)?;
 
         if fd == -1 {
