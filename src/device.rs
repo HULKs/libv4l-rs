@@ -331,6 +331,9 @@ impl Handle {
 
 impl Drop for Handle {
     fn drop(&mut self) {
-        v4l2::close(self.fd).unwrap();
+        if self.fd >= 0 {
+            v4l2::close(self.fd).unwrap();
+            self.fd = -1;
+        }
     }
 }
