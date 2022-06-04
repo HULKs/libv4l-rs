@@ -270,6 +270,10 @@ impl Device {
             }
         }
     }
+
+    pub fn close(&mut self) {
+        drop(self.handle());
+    }
 }
 
 impl io::Read for Device {
