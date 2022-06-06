@@ -7,10 +7,21 @@ use crate::control;
 use crate::v4l2;
 use crate::v4l_sys::*;
 use crate::{capability::Capabilities, control::Control};
+use thiserror::Error;
 
 pub enum OpenFlags {
     Nonblocking = 0,
     Blocking = 1,
+}
+
+#[derive(Error, Debug)]
+pub enum WaitError {
+    #[error("poll did not return an image before timeout")]
+    Timeout,
+    #[error("poll returned -1. errno: {0}")]
+    PollError(errno::Errno),
+    #[error("polled event was not POLLIN. revents: {0}")]
+    DeviceError(i16),
 }
 
 /// Linux capture device abstraction
@@ -247,7 +258,7 @@ impl Device {
         }
     }
 
-    pub fn wait(&self, timeout: Option<usize>) -> io::Result<()> {
+    pub fn wait(&self, timeout: Option<usize>) -> Result<(), WaitError> {
         let mut file_descriptors = [libc::pollfd {
             fd: self.handle().fd(),
             events: libc::POLLIN | libc::POLLPRI,
@@ -259,13 +270,13 @@ impl Device {
         };
         let number_of_events = unsafe { libc::poll(file_descriptors.as_mut_ptr(), 1, timeout) };
         match number_of_events {
-            -1 => Err(io::Error::from(io::ErrorKind::Other)),
-            0 => Err(io::Error::from(io::ErrorKind::TimedOut)),
+            -1 => Err(WaitError::PollError(errno::errno())),
+            0 => Err(WaitError::Timeout),
             _ => {
                 if file_descriptors[0].revents & libc::POLLIN != 0 {
                     Ok(())
                 } else {
-                    Err(io::Error::from(io::ErrorKind::ConnectionReset))
+                    Err(WaitError::DeviceError(file_descriptors[0].revents))
                 }
             }
         }
